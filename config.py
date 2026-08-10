@@ -1,5 +1,5 @@
 # فقط این خط را تغییر بده
-TARGET_URL = "https://web.whatsapp.com/"
+TARGET_URL = "https://gemini.google.com/"
 
 # پورت سرور
 PORT = 10000
