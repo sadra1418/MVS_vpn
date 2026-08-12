@@ -1,5 +1,5 @@
-# فقط این خط را تغییر بده
-TARGET_URL = "https://ourdream.ai/"
+
+TARGET_URL = "http://gemini.google.com"
 
 # پورت سرور
 PORT = 10000
