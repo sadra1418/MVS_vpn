@@ -1,48 +1,35 @@
 # MVS_vpn
 
-مرورگر واقعی روی سرور با **IP سرور**  
-تو از طریق مرورگر خودت (noVNC) آن را می‌بینی و کنترل می‌کنی.
-
-## اجرا
-
-```bash
-docker build -t mvs-vpn .
-
-docker run -d \
-  --name mvs-vpn \
-  --ipc=host \
-  --shm-size=2g \
-  -p 6080:6080 \
-  -e TARGET_URL=https://gemini.google.com \
-  mvs-vpn
-```
-
-سپس برو به:
-
-```
-http://IP-سرور:6080
-```
-
-روی **Connect** کلیک کن. مرورگر سرور را می‌بینی.
+پروکسی شخصی: هر سایتی که در `config.py` بگذاری، با **IP سرور** در مسیر اصلی (`/`) باز می‌شود.
 
 ## تغییر سایت
 
-```bash
-docker run -d --name mvs-vpn --ipc=host --shm-size=2g -p 6080:6080 \
-  -e TARGET_URL=https://chat.deepseek.com \
-  mvs-vpn
+فایل `config.py`:
+
+```python
+TARGET_URL = "https://chat.deepseek.com/"
+# یا
+# TARGET_URL = "https://gemini.google.com"
 ```
 
-یا فایل `config.py` را تغییر بده و دوباره build کن.
-
-## نکات سرعت
-
-- اولین بار کمی طول می‌کشد (دانلود image + نصب)
-- بعد از بالا آمدن، سرعت تعامل خوب است (VNC مستقیم)
-- `--ipc=host` و `--shm-size=2g` حتماً بگذار تا کروم کرش نکند
-
-## توقف
+## اجرا با Docker
 
 ```bash
-docker stop mvs-vpn && docker rm mvs-vpn
+docker build -t mvs-vpn .
+docker run -p 10000:10000 mvs-vpn
 ```
+
+بعد برو به:
+
+```
+http://IP-سرور:10000/
+```
+
+سایت هدف مستقیماً در همان صفحه باز می‌شود و درخواست‌ها از IP سرور می‌روند.
+
+## نکته
+
+- این یک **reverse proxy** است.
+- برای سایت‌های ساده خوب کار می‌کند.
+- سایت‌های خیلی پیچیده (مثل Gemini با لاگین گوگل و WebSocket) ممکن است کامل کار نکنند.
+- اگر نیاز به کنترل کامل مرورگر داشتی، بعداً می‌توانیم noVNC اضافه کنیم.

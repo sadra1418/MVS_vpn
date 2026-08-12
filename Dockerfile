@@ -1,43 +1,20 @@
-FROM mcr.microsoft.com/playwright/python:v1.49.1-noble
+FROM python:3.13-slim
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV DISPLAY=:99
-ENV SCREEN_WIDTH=1280
-ENV SCREEN_HEIGHT=800
-ENV SCREEN_DEPTH=24
-ENV TARGET_URL=https://gemini.google.com
-ENV HOME=/home/pwuser
-
-USER root
-
-# ابزارهای لازم برای نمایش مجازی + VNC + noVNC
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    xvfb \
-    x11vnc \
-    fluxbox \
-    novnc \
-    websockify \
-    supervisor \
-    curl \
-    ca-certificates \
-    fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
-
-# لینک راحت به صفحه اصلی noVNC
-RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html || true
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY config.py open_browser.py start.sh ./
-RUN chmod +x start.sh
+COPY . .
 
-# سوپروایزر برای مدیریت چند پروسه
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+EXPOSE 10000
 
-EXPOSE 6080
-
-# توصیه: موقع اجرا --ipc=host و --shm-size=2g بده
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:10000", "--timeout", "120", "--workers", "2"]
