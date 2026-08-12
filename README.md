@@ -1,36 +1,48 @@
 # MVS_vpn
 
-سایت مورد نظرت روی سرور باز می‌شود و تو فقط یک صفحه را باز می‌کنی و کنترل می‌کنی.
+مرورگر واقعی روی سرور با **IP سرور**  
+تو از طریق مرورگر خودت (noVNC) آن را می‌بینی و کنترل می‌کنی.
 
-## اجرا (خیلی ساده)
+## اجرا
 
 ```bash
 docker build -t mvs-vpn .
-docker run -p 10000:10000 -p 6080:6080 mvs-vpn
+
+docker run -d \
+  --name mvs-vpn \
+  --ipc=host \
+  --shm-size=2g \
+  -p 6080:6080 \
+  -e TARGET_URL=https://gemini.google.com \
+  mvs-vpn
 ```
 
-بعد برو به:
+سپس برو به:
 
 ```
-http://IP-سرور:10000
+http://IP-سرور:6080
 ```
 
-روی دکمه کلیک کن → صفحه واقعی سایت باز می‌شود و می‌توانی با آن کار کنی.
+روی **Connect** کلیک کن. مرورگر سرور را می‌بینی.
 
 ## تغییر سایت
 
-فایل `config.py` را ویرایش کن:
-
-```python
-TARGET_URL = "https://gemini.google.com"
-# یا
-# TARGET_URL = "https://chat.deepseek.com"
+```bash
+docker run -d --name mvs-vpn --ipc=host --shm-size=2g -p 6080:6080 \
+  -e TARGET_URL=https://chat.deepseek.com \
+  mvs-vpn
 ```
 
-بعد دوباره build و run کن.
+یا فایل `config.py` را تغییر بده و دوباره build کن.
 
-## نکته
+## نکات سرعت
 
-- همه درخواست‌ها با IP سرور انجام می‌شود
-- می‌توانی کلیک کنی، تایپ کنی و اسکرول کنی
-- اولین بار ممکن است ۳۰–۶۰ ثانیه طول بکشد تا همه چیز بالا بیاید
+- اولین بار کمی طول می‌کشد (دانلود image + نصب)
+- بعد از بالا آمدن، سرعت تعامل خوب است (VNC مستقیم)
+- `--ipc=host` و `--shm-size=2g` حتماً بگذار تا کروم کرش نکند
+
+## توقف
+
+```bash
+docker stop mvs-vpn && docker rm mvs-vpn
+```

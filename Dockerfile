@@ -1,33 +1,43 @@
-FROM python:3.12-slim
+FROM mcr.microsoft.com/playwright/python:v1.49.1-noble
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DISPLAY=:99
+ENV SCREEN_WIDTH=1280
+ENV SCREEN_HEIGHT=800
+ENV SCREEN_DEPTH=24
+ENV TARGET_URL=https://gemini.google.com
+ENV HOME=/home/pwuser
+
+USER root
+
+# ابزارهای لازم برای نمایش مجازی + VNC + noVNC
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xvfb \
+    x11vnc \
+    fluxbox \
+    novnc \
+    websockify \
+    supervisor \
+    curl \
+    ca-certificates \
+    fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
+# لینک راحت به صفحه اصلی noVNC
+RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html || true
 
 WORKDIR /app
-
-# نصب وابستگی‌های سیستم برای مرورگر + نمایش مجازی + noVNC
-RUN apt-get update && apt-get install -y \
-    curl wget git ca-certificates \
-    xvfb x11vnc fluxbox \
-    novnc websockify \
-    fonts-liberation libnss3 libatk-bridge2.0-0 libgtk-3-0 \
-    libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
-    libasound2 libpangocairo-1.0-0 libcups2 libxkbcommon0 \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# نصب مرورگر Playwright
-RUN playwright install chromium
-RUN playwright install-deps chromium || true
-
-COPY . .
+COPY config.py open_browser.py start.sh ./
 RUN chmod +x start.sh
 
-# پورت‌ها: 10000 = صفحه وب ، 6080 = noVNC
-EXPOSE 10000 6080
+# سوپروایزر برای مدیریت چند پروسه
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-CMD ["bash", "start.sh"]
+EXPOSE 6080
+
+# توصیه: موقع اجرا --ipc=host و --shm-size=2g بده
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
