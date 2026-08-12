@@ -1,18 +1,7 @@
-from flask import Flask, render_template_string
-from config import PORT
-import socket
+from flask import Flask, render_template_string, redirect
+from config import TARGET_URL, PORT
 
 app = Flask(__name__)
-
-def get_server_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except:
-        return "IP-سرور"
 
 HTML = """
 <!DOCTYPE html>
@@ -20,107 +9,56 @@ HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MVS_vpn - پروکسی شخصی</title>
+    <title>MVS_vpn</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #0b0f19;
-            color: #e2e8f0;
-            min-height: 100vh;
-            padding: 2rem 1rem;
-            line-height: 1.7;
-        }
+        body, html { height: 100%; background: #0f0f0f; color: #e5e5e5; font-family: system-ui, sans-serif; }
         .container {
-            max-width: 680px;
+            max-width: 900px;
             margin: 0 auto;
+            padding: 2rem 1rem;
+            text-align: center;
         }
-        h1 {
-            color: #4ade80;
-            font-size: 1.8rem;
-            margin-bottom: 0.5rem;
-        }
-        .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-        .card {
-            background: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 16px;
-            padding: 1.5rem;
-            margin-bottom: 1.25rem;
-        }
-        .card h2 {
-            color: #60a5fa;
+        h1 { color: #4ade80; margin-bottom: 0.5rem; }
+        .sub { color: #94a3b8; margin-bottom: 2rem; }
+        .btn {
+            display: inline-block;
+            background: #4ade80;
+            color: #000;
+            padding: 14px 32px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
             font-size: 1.1rem;
-            margin-bottom: 0.75rem;
+            margin: 0.5rem;
         }
-        code, .ip {
-            background: #1e293b;
-            color: #fbbf24;
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-family: ui-monospace, monospace;
-            font-size: 0.95rem;
+        .btn:hover { background: #22c55e; }
+        .info {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            text-align: right;
+            line-height: 1.8;
         }
-        .step {
-            background: #0f172a;
-            border-right: 3px solid #4ade80;
-            padding: 0.75rem 1rem;
-            margin: 0.5rem 0;
-            border-radius: 0 8px 8px 0;
-        }
-        .ok { color: #4ade80; }
-        .warn { color: #fbbf24; }
-        ul { padding-right: 1.2rem; }
-        li { margin: 0.4rem 0; }
+        code { background: #222; padding: 2px 6px; border-radius: 4px; color: #fbbf24; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>MVS_vpn</h1>
-        <p class="subtitle">پروکسی شخصی با IP سرور — سریع و پایدار</p>
+        <p class="sub">سایت روی سرور با IP خارجی باز شده است</p>
 
-        <div class="card">
-            <h2>اطلاعات پروکسی</h2>
-            <p>نوع: <code>SOCKS5</code></p>
-            <p>آدرس: <span class="ip">{{ ip }}</span></p>
-            <p>پورت: <code>1080</code></p>
-            <p style="margin-top:0.8rem;color:#94a3b8;font-size:0.9rem;">
-                هیچ نام کاربری و رمزی نیاز نیست.
-            </p>
+        <a class="btn" href="http://{{ host }}:6080/vnc.html" target="_blank">
+            باز کردن صفحه سایت (کلیک کن)
+        </a>
+
+        <div class="info">
+            <p><b>سایت هدف:</b> <code>{{ target }}</code></p>
+            <p>بعد از کلیک روی دکمه بالا، صفحه واقعی سایت را می‌بینی و می‌توانی با آن کار کنی (کلیک، تایپ، اسکرول).</p>
+            <p>همه درخواست‌ها با <b>IP سرور</b> ارسال می‌شوند.</p>
         </div>
-
-        <div class="card">
-            <h2>چطور استفاده کنی؟</h2>
-            
-            <p style="margin-bottom:0.8rem;"><b>روش ۱ — مرورگر (ساده‌ترین)</b></p>
-            <div class="step">
-                ۱. افزونه <b>SwitchyOmega</b> یا <b>FoxyProxy</b> را نصب کن
-            </div>
-            <div class="step">
-                ۲. یک پروفایل SOCKS5 بساز با آدرس <code>{{ ip }}</code> و پورت <code>1080</code>
-            </div>
-            <div class="step">
-                ۳. آن را فعال کن → حالا همه سایت‌ها با IP سرور باز می‌شوند
-            </div>
-
-            <p style="margin:1.2rem 0 0.8rem;"><b>روش ۲ — کل سیستم (Windows / macOS / Linux)</b></p>
-            <div class="step">
-                تنظیمات سیستم → Network → Proxy → SOCKS5 → <code>{{ ip }}:1080</code>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2>نکته مهم</h2>
-            <ul>
-                <li class="ok">این روش برای Gemini، DeepSeek، ChatGPT و همه سایت‌ها کار می‌کند</li>
-                <li class="ok">سرعت بالا و مصرف منابع خیلی کم</li>
-                <li class="warn">اگر سرورت IP ایران باشد، ممکن است بعضی سایت‌ها هنوز محدود باشند</li>
-            </ul>
-        </div>
-
-        <p style="text-align:center;color:#64748b;font-size:0.85rem;margin-top:2rem;">
-            سرویس فعال است • پورت پروکسی: 1080
-        </p>
     </div>
 </body>
 </html>
@@ -128,7 +66,10 @@ HTML = """
 
 @app.route("/")
 def index():
-    return render_template_string(HTML, ip=get_server_ip())
+    # host را از درخواست می‌گیریم تا لینک درست ساخته شود
+    from flask import request
+    host = request.host.split(":")[0]
+    return render_template_string(HTML, target=TARGET_URL, host=host)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT)
