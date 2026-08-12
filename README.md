@@ -1,35 +1,45 @@
 # MVS_vpn
 
-پروکسی شخصی: هر سایتی که در `config.py` بگذاری، با **IP سرور** در مسیر اصلی (`/`) باز می‌شود.
+پروکسی شخصی سبک و سریع با **SOCKS5**
 
-## تغییر سایت
+همه سایت‌ها (Gemini، DeepSeek، ChatGPT و ...) با IP سرور باز می‌شوند.
 
-فایل `config.py`:
-
-```python
-TARGET_URL = "https://chat.deepseek.com/"
-# یا
-# TARGET_URL = "https://gemini.google.com"
-```
-
-## اجرا با Docker
+## اجرا
 
 ```bash
 docker build -t mvs-vpn .
-docker run -p 10000:10000 mvs-vpn
+docker run -p 1080:1080 -p 10000:10000 mvs-vpn
 ```
 
-بعد برو به:
+## اطلاعات پروکسی
 
+| مورد | مقدار |
+|------|--------|
+| نوع | SOCKS5 |
+| آدرس | IP سرور |
+| پورت | `1080` |
+| یوزرنیم / پسورد | ندارد |
+
+## چطور استفاده کنی؟
+
+### روش سریع (مرورگر)
+1. افزونه **Proxy SwitchyOmega** یا **FoxyProxy** را نصب کن
+2. یک پروفایل SOCKS5 بساز:
+   - Protocol: `SOCKS5`
+   - Server: `IP-سرور`
+   - Port: `1080`
+3. پروفایل را فعال کن
+
+### روش سیستم‌عامل
+- **Windows**: Settings → Network & Internet → Proxy → Manual → SOCKS
+- **macOS**: System Settings → Network → Details → Proxies → SOCKS Proxy
+- **Linux**: تنظیمات شبکه یا `export ALL_PROXY=socks5://IP:1080`
+
+## صفحه راهنما
+
+بعد از اجرا برو به:
 ```
-http://IP-سرور:10000/
+http://IP-سرور:10000
 ```
 
-سایت هدف مستقیماً در همان صفحه باز می‌شود و درخواست‌ها از IP سرور می‌روند.
-
-## نکته
-
-- این یک **reverse proxy** است.
-- برای سایت‌های ساده خوب کار می‌کند.
-- سایت‌های خیلی پیچیده (مثل Gemini با لاگین گوگل و WebSocket) ممکن است کامل کار نکنند.
-- اگر نیاز به کنترل کامل مرورگر داشتی، بعداً می‌توانیم noVNC اضافه کنیم.
+اطلاعات کامل و راهنما آنجا نمایش داده می‌شود.
