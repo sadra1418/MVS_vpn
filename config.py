@@ -1,5 +1,5 @@
 
-TARGET_URL = "https://ourdream.ai/"
+TARGET_URL = "https://t.me/"
 
 # پورت سرور
 PORT = 10000
