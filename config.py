@@ -1,5 +1,5 @@
 
-TARGET_URL = "http://gemini.com"
+TARGET_URL = "https://telegram.org"
 
 # پورت سرور
 PORT = 10000
