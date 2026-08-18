@@ -9,7 +9,7 @@ from config import TARGET_URL
 async def main():
     async with async_playwright() as p:
         # headless=False یعنی مرورگر واقعی باز می‌شود
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
         await page.goto(TARGET_URL)
