@@ -1,5 +1,5 @@
 
-TARGET_URL = "https://mvs-vpn.onrender.com/"
+TARGET_URL = "https://www.telegram.org/"
 
 # پورت سرور
 PORT = 10000
