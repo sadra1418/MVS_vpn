@@ -1,5 +1,5 @@
 
-TARGET_URL = "https://ourdream.ai/"
+TARGET_URL = "https:///"
 
 # پورت سرور
 PORT = 10000
