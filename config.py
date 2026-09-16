@@ -1,5 +1,5 @@
 
-TARGET_URL = "https://ourdream.ai/chat/daphne-garner-2weX6S4SDM"
+TARGET_URL = "https://ourdream.ai/"
 
 # پورت سرور
 PORT = 10000
