@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+from collections import deque
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
@@ -10,7 +11,6 @@ from playwright.async_api import async_playwright
 
 playwright = None
 browser = None
-browser_lock = asyncio.Lock()
 
 
 @asynccontextmanager
@@ -25,6 +25,9 @@ async def lifespan(app):
             "--disable-dev-shm-usage",
             "--disable-gpu",
             "--disable-software-rasterizer",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
         ],
     )
 
@@ -104,7 +107,7 @@ document.getElementById("form").addEventListener("submit", (event) => {
     event.preventDefault();
     const url = document.getElementById("url").value.trim();
 
-    if (!/^https?:\\/\\//i.test(url)) {
+    if (!/^https?:\/\//i.test(url)) {
         alert("URL باید با http:// یا https:// شروع شود.");
         return;
     }
@@ -135,7 +138,6 @@ html, body {
     width: 100vw;
     height: 100vh;
     display: block;
-    object-fit: contain;
     background: #111;
     cursor: default;
 }
@@ -161,14 +163,16 @@ html, body {
 const canvas = document.getElementById("browser");
 const ctx = canvas.getContext("2d", { alpha: false });
 const status = document.getElementById("status");
-
 const params = new URLSearchParams(location.search);
 const target = params.get("url");
 
 let ws;
 let frameWidth = 1280;
 let frameHeight = 720;
-let lastPointer = {x: 0, y: 0};
+let latestFrame = null;
+let drawing = false;
+let pendingMove = null;
+let moveScheduled = false;
 
 function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -178,19 +182,17 @@ resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
 
 function send(data) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 32768) {
         ws.send(JSON.stringify(data));
     }
 }
 
 function pointerPosition(event) {
     const rect = canvas.getBoundingClientRect();
-
-    const x = (event.clientX - rect.left) * frameWidth / rect.width;
-    const y = (event.clientY - rect.top) * frameHeight / rect.height;
-
-    lastPointer = {x, y};
-    return {x, y};
+    return {
+        x: (event.clientX - rect.left) * frameWidth / rect.width,
+        y: (event.clientY - rect.top) * frameHeight / rect.height
+    };
 }
 
 function modifiers(event) {
@@ -200,6 +202,31 @@ function modifiers(event) {
     if (event.metaKey) result |= 4;
     if (event.shiftKey) result |= 8;
     return result;
+}
+
+function scheduleMove(event) {
+    pendingMove = event;
+
+    if (moveScheduled) return;
+    moveScheduled = true;
+
+    requestAnimationFrame(() => {
+        moveScheduled = false;
+        if (!pendingMove) return;
+
+        const current = pendingMove;
+        pendingMove = null;
+        const p = pointerPosition(current);
+
+        send({
+            type: "mouse",
+            action: "move",
+            x: p.x,
+            y: p.y,
+            buttons: current.buttons,
+            modifiers: modifiers(current)
+        });
+    });
 }
 
 function connect() {
@@ -223,7 +250,7 @@ function connect() {
         status.textContent = "connection error";
     };
 
-    ws.onmessage = async (event) => {
+    ws.onmessage = (event) => {
         if (typeof event.data === "string") {
             const message = JSON.parse(event.data);
 
@@ -235,21 +262,38 @@ function connect() {
             if (message.type === "error") {
                 status.textContent = message.message;
             }
-
             return;
         }
 
-        const bitmap = await createImageBitmap(event.data);
-        frameWidth = bitmap.width;
-        frameHeight = bitmap.height;
-
-        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-        bitmap.close();
+        latestFrame = event.data;
+        if (!drawing) drawLatestFrame();
     };
+}
+
+async function drawLatestFrame() {
+    drawing = true;
+
+    try {
+        while (latestFrame) {
+            const frame = latestFrame;
+            latestFrame = null;
+
+            const bitmap = await createImageBitmap(frame);
+            frameWidth = bitmap.width;
+            frameHeight = bitmap.height;
+
+            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            bitmap.close();
+        }
+    } finally {
+        drawing = false;
+        if (latestFrame) drawLatestFrame();
+    }
 }
 
 canvas.addEventListener("mousedown", (event) => {
     const p = pointerPosition(event);
+
     send({
         type: "mouse",
         action: "down",
@@ -259,11 +303,13 @@ canvas.addEventListener("mousedown", (event) => {
         buttons: event.buttons,
         modifiers: modifiers(event)
     });
+
     canvas.focus();
 });
 
 canvas.addEventListener("mouseup", (event) => {
     const p = pointerPosition(event);
+
     send({
         type: "mouse",
         action: "up",
@@ -275,17 +321,7 @@ canvas.addEventListener("mouseup", (event) => {
     });
 });
 
-canvas.addEventListener("mousemove", (event) => {
-    const p = pointerPosition(event);
-    send({
-        type: "mouse",
-        action: "move",
-        x: p.x,
-        y: p.y,
-        buttons: event.buttons,
-        modifiers: modifiers(event)
-    });
-});
+canvas.addEventListener("mousemove", scheduleMove);
 
 canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
@@ -353,46 +389,41 @@ async def browser_page():
 
 async def send_mouse(cdp, message):
     action = message.get("action")
-    button_map = {
-        0: "left",
-        1: "middle",
-        2: "right",
-    }
-
-    params = {
-        "type": "mouseMoved" if action == "move" else (
-            "mousePressed" if action == "down" else "mouseReleased"
-        ),
-        "x": float(message.get("x", 0)),
-        "y": float(message.get("y", 0)),
-        "button": button_map.get(message.get("button", 0), "left"),
-        "buttons": int(message.get("buttons", 0)),
-        "clickCount": 1,
-        "modifiers": int(message.get("modifiers", 0)),
-    }
 
     if action == "move":
-        params.pop("button", None)
-        params.pop("clickCount", None)
+        params = {
+            "type": "mouseMoved",
+            "x": float(message.get("x", 0)),
+            "y": float(message.get("y", 0)),
+            "buttons": int(message.get("buttons", 0)),
+            "modifiers": int(message.get("modifiers", 0)),
+        }
+    else:
+        button_map = {0: "left", 1: "middle", 2: "right"}
+        params = {
+            "type": "mousePressed" if action == "down" else "mouseReleased",
+            "x": float(message.get("x", 0)),
+            "y": float(message.get("y", 0)),
+            "button": button_map.get(message.get("button", 0), "left"),
+            "buttons": int(message.get("buttons", 0)),
+            "clickCount": 1,
+            "modifiers": int(message.get("modifiers", 0)),
+        }
 
     await cdp.send("Input.dispatchMouseEvent", params)
 
 
 async def send_key(cdp, message):
     action = message.get("action")
-    key = message.get("key", "")
-    code = message.get("code", "")
-    text = message.get("text", "")
-    event_type = "keyDown" if action == "down" else "keyUp"
-
     params = {
-        "type": event_type,
-        "key": key,
-        "code": code,
+        "type": "keyDown" if action == "down" else "keyUp",
+        "key": message.get("key", ""),
+        "code": message.get("code", ""),
         "modifiers": int(message.get("modifiers", 0)),
         "autoRepeat": bool(message.get("autoRepeat", False)),
     }
 
+    text = message.get("text", "")
     if action == "down" and text:
         params["text"] = text
 
@@ -454,26 +485,23 @@ async def websocket_browser(websocket: WebSocket):
         page = await context.new_page()
         cdp = await context.new_cdp_session(page)
 
-        frame_ready = asyncio.Event()
+        latest_frame = None
+        frame_lock = asyncio.Lock()
+        frame_event = asyncio.Event()
 
         async def on_frame(params):
-            data = params["data"]
-            session_id = params["sessionId"]
+            nonlocal latest_frame
 
             await cdp.send(
                 "Page.screencastFrameAck",
-                {"sessionId": session_id},
+                {"sessionId": params["sessionId"]},
             )
 
-            try:
-                await websocket.send_bytes(base64.b64decode(data))
-            except Exception:
-                pass
+            frame = base64.b64decode(params["data"])
 
-            frame_ready.set()
-
-        async def on_size(params):
-            pass
+            async with frame_lock:
+                latest_frame = frame
+                frame_event.set()
 
         cdp.on("Page.screencastFrame", on_frame)
 
@@ -481,9 +509,9 @@ async def websocket_browser(websocket: WebSocket):
             "Page.startScreencast",
             {
                 "format": "jpeg",
-                "quality": 70,
-                "maxWidth": 1440,
-                "maxHeight": 900,
+                "quality": 60,
+                "maxWidth": 1280,
+                "maxHeight": 720,
                 "everyNthFrame": 1,
             },
         )
@@ -500,10 +528,38 @@ async def websocket_browser(websocket: WebSocket):
             "height": 720,
         })
 
-        while True:
-            raw = await websocket.receive_text()
-            message = json.loads(raw)
-            await handle_input(cdp, message)
+        async def send_latest_frame():
+            nonlocal latest_frame
+
+            while True:
+                await frame_event.wait()
+
+                async with frame_lock:
+                    frame = latest_frame
+                    latest_frame = None
+                    frame_event.clear()
+
+                if frame is None:
+                    continue
+
+                try:
+                    await websocket.send_bytes(frame)
+                except Exception:
+                    return
+
+        frame_task = asyncio.create_task(send_latest_frame())
+
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                message = json.loads(raw)
+                await handle_input(cdp, message)
+        finally:
+            frame_task.cancel()
+            try:
+                await frame_task
+            except asyncio.CancelledError:
+                pass
 
     except WebSocketDisconnect:
         pass
