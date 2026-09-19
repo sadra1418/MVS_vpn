@@ -1,20 +1,26 @@
 # MVS_vpn
 
-پروکسی شخصی بهبودیافته برای باز کردن سایت هدف از طریق IP سرور.
+پروکسی به شکل **Remote Browser**.
 
-## قابلیت جدید: replay کردن کلیک‌ها
+در این نسخه، صفحه‌ای که کاربر می‌بیند دیگر HTML سایت هدف نیست. سرور یک Chromium واقعی با Playwright اجرا می‌کند، سایت هدف را داخل همان مرورگر باز می‌کند و تصویر آن مرورگر را برای کاربر نمایش می‌دهد.
 
-در نسخه جدید، فقط صفحه از طریق httpx گرفته نمی‌شود. روی HTML پروکسی یک listener کلیک تزریق می‌شود و برای هر کلیک این اطلاعات ارسال می‌شود:
+## معماری
 
-- مختصات x/y داخل viewport
-- مقدار scrollX/scrollY
-- اندازه viewport
-- URL همان لحظه
-- زمان کلیک
+```
+Browser user
+    |
+    | screenshot + mouse/keyboard events
+    v
+Flask
+    |
+    v
+Playwright Chromium
+    |
+    v
+Target website
+```
 
-سرور برای هر کاربر یک Chromium headless با Playwright نگه می‌دارد و همان کلیک را روی صفحه واقعی سایت هدف در همان مختصات replay می‌کند.
-
-این مدل عمداً **shadow browser** است: کلیک اصلی همچنان در صفحه کاربر انجام می‌شود و هم‌زمان همان action روی مرورگر واقعی سرور هم اجرا می‌شود. بنابراین رفتار فعلی proxy خراب نمی‌شود و یک مسیر واقعی Playwright هم برای سایت‌های dynamic داریم.
+در نتیجه JavaScript، fetch/XHR، cookie، localStorage و state سمت مرورگر داخل Chromium واقعی سرور اجرا می‌شوند. این با نسخه قبلی که HTML را با httpx می‌گرفت و فقط کلیک‌ها را replay می‌کرد تفاوت اساسی دارد.
 
 ## اجرا با Docker
 
@@ -23,47 +29,20 @@ docker build -t mvs-vpn .
 docker run -p 10000:10000 mvs-vpn
 ```
 
-بعد:
+## تغییر سایت هدف
 
-```
-http://IP-سرور:10000/
-```
-
-Docker در زمان build، Chromium و dependencyهای لازم Playwright را نصب می‌کند.
-
-## تغییر سایت
-
-در config.py:
+در `config.py`:
 
 ```python
-TARGET_URL = "https://ourdream.ai/"
+TARGET_URL = "https://www.youtube.com/"
 ```
 
-## معماری
+## نکته مهم
 
-```
-Browser user
-    |
-    | GET page
-    v
-Flask + httpx  ----->  Target website
-    |
-    | injected click event: x/y + scroll + URL
-    v
-/_mvs/click
-    |
-    v
-Playwright Chromium
-    |
-    | page.mouse.click(x, y)
-    v
-Target website
-```
+این یک **prototype remote browser** است، نه یک proxy HTTP عمومی.
 
-## محدودیت فعلی
+کاربر تصویر Chromium را می‌بیند و eventهای اصلی را به Chromium می‌فرستد. بنابراین برای سایت‌های JavaScript-heavy از مدل قبلی مناسب‌تر است.
 
-این نسخه state مرورگر کاربر را به طور کامل mirror نمی‌کند. یعنی فعلاً کلیک‌ها replay می‌شوند، اما typing/input و بعضی stateهای کاملاً client-side جداگانه sync نمی‌شوند.
+در این نسخه هنوز audio/video واقعی از Chromium به مرورگر کاربر stream نمی‌شود. تصویر با screenshotهای متوالی نمایش داده می‌شود. بنابراین برای YouTube، خود صفحه و تعاملات باید بهتر از proxy قبلی کار کنند، اما پخش ویدیو و صدا هنوز محدودیت دارد.
 
-همچنین برای پایداری sessionهای Playwright، Gunicorn با یک worker اجرا می‌شود. اگر بعداً sessionهای زیاد لازم شد، باید session store و browser pool جدا اضافه شود.
-
-مرحله بعدی می‌تواند تبدیل این معماری به **full remote browser** باشد، یعنی به جای shadow browser، خود Chromium سرور منبع اصلی صفحه باشد و تعاملات کاربر مستقیماً روی همان browser انجام شوند.
+همچنین برای هر session یک Chromium context ساخته می‌شود، پس تعداد sessionهای هم‌زمان روی یک instance محدود است.
