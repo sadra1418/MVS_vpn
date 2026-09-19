@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import json
-from collections import deque
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
@@ -11,6 +10,10 @@ from playwright.async_api import async_playwright
 
 playwright = None
 browser = None
+
+FRAME_WIDTH = 1024
+FRAME_HEIGHT = 576
+FRAME_QUALITY = 45
 
 
 @asynccontextmanager
@@ -28,6 +31,7 @@ async def lifespan(app):
             "--disable-background-timer-throttling",
             "--disable-backgrounding-occluded-windows",
             "--disable-renderer-backgrounding",
+            "--disable-features=CalculateNativeWinOcclusion",
         ],
     )
 
@@ -140,6 +144,7 @@ html, body {
     display: block;
     background: #111;
     cursor: default;
+    image-rendering: auto;
 }
 #status {
     position: fixed;
@@ -161,14 +166,14 @@ html, body {
 
 <script>
 const canvas = document.getElementById("browser");
-const ctx = canvas.getContext("2d", { alpha: false });
+const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
 const status = document.getElementById("status");
 const params = new URLSearchParams(location.search);
 const target = params.get("url");
 
 let ws;
-let frameWidth = 1280;
-let frameHeight = 720;
+let frameWidth = 1024;
+let frameHeight = 576;
 let latestFrame = null;
 let drawing = false;
 let pendingMove = null;
@@ -182,7 +187,7 @@ resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
 
 function send(data) {
-    if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 32768) {
+    if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 16384) {
         ws.send(JSON.stringify(data));
     }
 }
@@ -265,8 +270,15 @@ function connect() {
             return;
         }
 
+        if (latestFrame) {
+            latestFrame = null;
+        }
+
         latestFrame = event.data;
-        if (!drawing) drawLatestFrame();
+
+        if (!drawing) {
+            drawLatestFrame();
+        }
     };
 }
 
@@ -415,6 +427,7 @@ async def send_mouse(cdp, message):
 
 async def send_key(cdp, message):
     action = message.get("action")
+
     params = {
         "type": "keyDown" if action == "down" else "keyUp",
         "key": message.get("key", ""),
@@ -473,7 +486,7 @@ async def websocket_browser(websocket: WebSocket):
 
     try:
         context = await browser.new_context(
-            viewport={"width": 1280, "height": 720},
+            viewport={"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
             device_scale_factor=1,
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -509,9 +522,9 @@ async def websocket_browser(websocket: WebSocket):
             "Page.startScreencast",
             {
                 "format": "jpeg",
-                "quality": 60,
-                "maxWidth": 1280,
-                "maxHeight": 720,
+                "quality": FRAME_QUALITY,
+                "maxWidth": FRAME_WIDTH,
+                "maxHeight": FRAME_HEIGHT,
                 "everyNthFrame": 1,
             },
         )
@@ -524,8 +537,8 @@ async def websocket_browser(websocket: WebSocket):
 
         await websocket.send_json({
             "type": "size",
-            "width": 1280,
-            "height": 720,
+            "width": FRAME_WIDTH,
+            "height": FRAME_HEIGHT,
         })
 
         async def send_latest_frame():
