@@ -289,7 +289,7 @@ async function sendEvent(type, payload = {}) {
     refreshScreen();
 }
 
-screen.addEventListener("click", event => {
+layer.addEventListener("click", event => {
     event.preventDefault();
     layer.focus();
 
@@ -297,7 +297,7 @@ screen.addEventListener("click", event => {
     sendEvent("click", p);
 });
 
-screen.addEventListener("wheel", event => {
+layer.addEventListener("wheel", event => {
     event.preventDefault();
     layer.focus();
     sendEvent("wheel", {delta_x: event.deltaX, delta_y: event.deltaY});
