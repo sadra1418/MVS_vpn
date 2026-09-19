@@ -202,10 +202,10 @@ def replay_click():
 
         # First click starts the real browser at the same page the user sees.
         # Later clicks keep the real browser's JS state unless the URL changed.
-        current_path = urlparse(page.url).path if page.url else None
-        target_path = urlparse(target_url).path
+        current_location = (urlparse(page.url).path + "?" + urlparse(page.url).query) if page.url else None
+        target_location = urlparse(target_url).path + ("?" + urlparse(target_url).query if urlparse(target_url).query else "")
 
-        if not page.url or current_path != target_path:
+        if not page.url or current_location != target_location:
             page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
 
         page.evaluate(
@@ -265,7 +265,7 @@ def proxy(path):
         "Referer": TARGET_ORIGIN + "/",
     }
 
-    cookies = dict(request.cookies)
+    cookies = {k: v for k, v in request.cookies.items() if k != "mvs_session"}
 
     try:
         if request.method == "GET":
