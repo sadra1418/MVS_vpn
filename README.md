@@ -1,17 +1,20 @@
 # MVS_vpn
 
-پروکسی شخصی بهبودیافته: هر سایتی که در `config.py` بگذاری، با **IP سرور** در مسیر اصلی (`/`) باز می‌شود.
+پروکسی شخصی بهبودیافته برای باز کردن سایت هدف از طریق IP سرور.
 
-## تغییر سایت
+## قابلیت جدید: replay کردن کلیک‌ها
 
-فایل `config.py`:
+در نسخه جدید، فقط صفحه از طریق httpx گرفته نمی‌شود. روی HTML پروکسی یک listener کلیک تزریق می‌شود و برای هر کلیک این اطلاعات ارسال می‌شود:
 
-```python
-TARGET_URL = "https://www.youtube.com/"
-# یا
-# TARGET_URL = "https://chat.deepseek.com/"
-# TARGET_URL = "https://gemini.google.com"
-```
+- مختصات x/y داخل viewport
+- مقدار scrollX/scrollY
+- اندازه viewport
+- URL همان لحظه
+- زمان کلیک
+
+سرور برای هر کاربر یک Chromium headless با Playwright نگه می‌دارد و همان کلیک را روی صفحه واقعی سایت هدف در همان مختصات replay می‌کند.
+
+این مدل عمداً **shadow browser** است: کلیک اصلی همچنان در صفحه کاربر انجام می‌شود و هم‌زمان همان action روی مرورگر واقعی سرور هم اجرا می‌شود. بنابراین رفتار فعلی proxy خراب نمی‌شود و یک مسیر واقعی Playwright هم برای سایت‌های dynamic داریم.
 
 ## اجرا با Docker
 
@@ -20,29 +23,47 @@ docker build -t mvs-vpn .
 docker run -p 10000:10000 mvs-vpn
 ```
 
-بعد برو به:
+بعد:
 
 ```
 http://IP-سرور:10000/
 ```
 
-سایت هدف مستقیماً در همان صفحه باز می‌شود و درخواست‌ها از IP سرور می‌روند.
+Docker در زمان build، Chromium و dependencyهای لازم Playwright را نصب می‌کند.
 
-## بهبودهای نسخه جدید
+## تغییر سایت
 
-- **فیک کردن وضعیت آنلاین**: اسکریپت تزریقی `navigator.onLine = true` و جلوگیری از پیام «به اینترنت متصل نیستید»
-- **پروکسی دامنه‌های مرتبط**: منابع یوتیوب، گوگل، CDNها و ... از طریق `/_ext/` پروکسی می‌شوند
-- **بازنویسی بهتر لینک‌ها**: `href`, `src`, `srcset`, `data-src`, `url()` در CSS و ...
-- **مدیریت بهتر کوکی و هدر**: حذف CSP و هدرهای محدودکننده
-- **پشتیبانی از OPTIONS و Range** برای ویدیو و preflight
+در config.py:
 
-## نکته مهم
+```python
+TARGET_URL = "https://ourdream.ai/"
+```
 
-- این هنوز یک **reverse proxy** ساده است (نه مرورگر واقعی).
-- برای سایت‌های نسبتاً ساده و متوسط بهتر کار می‌کند.
-- سایت‌هایی که heavily به WebSocket یا Service Worker وابسته‌اند (مثل برخی بخش‌های یوتیوب زنده یا جمینای) ممکن است هنوز مشکل داشته باشند.
-- اگر بعد از این آپدیت هنوز خطا دیدی، بگو تا نسخه **noVNC + Playwright** (مرورگر واقعی روی سرور) برات بسازم که خیلی قوی‌تر است.
+## معماری
 
-## اضافه کردن دامنه مرتبط جدید
+```
+Browser user
+    |
+    | GET page
+    v
+Flask + httpx  ----->  Target website
+    |
+    | injected click event: x/y + scroll + URL
+    v
+/_mvs/click
+    |
+    v
+Playwright Chromium
+    |
+    | page.mouse.click(x, y)
+    v
+Target website
+```
 
-اگر سایتی دامنه‌های دیگری داشت که کار نمی‌کرد، در `app.py` داخل لیست `RELATED_HOSTS` اضافه کن.
+## محدودیت فعلی
+
+این نسخه state مرورگر کاربر را به طور کامل mirror نمی‌کند. یعنی فعلاً کلیک‌ها replay می‌شوند، اما typing/input و بعضی stateهای کاملاً client-side جداگانه sync نمی‌شوند.
+
+همچنین برای پایداری sessionهای Playwright، Gunicorn با یک worker اجرا می‌شود. اگر بعداً sessionهای زیاد لازم شد، باید session store و browser pool جدا اضافه شود.
+
+مرحله بعدی می‌تواند تبدیل این معماری به **full remote browser** باشد، یعنی به جای shadow browser، خود Chromium سرور منبع اصلی صفحه باشد و تعاملات کاربر مستقیماً روی همان browser انجام شوند.
