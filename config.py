@@ -1,5 +1,5 @@
 
-TARGET_URL = "https://web.telegram.org/"
+TARGET_URL = "https://www.youtube.com/"
 
 # پورت سرور
 PORT = 10000
