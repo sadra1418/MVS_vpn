@@ -3,7 +3,7 @@
 # سایت هدف را اینجا تغییر بده
 # ============================================================
 
-TARGET_URL = "https://www.youtube.com/"
+TARGET_URL = "https://ourdream.ai/"
 
 # مثال‌های دیگر:
 # TARGET_URL = "https://chat.deepseek.com/"
